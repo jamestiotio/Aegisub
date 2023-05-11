@@ -101,8 +101,12 @@ void FoldController::FixFoldsPreCommit(int type, const AssDialogue *single_line)
 void FoldController::DoForFoldsAt(std::vector<AssDialogue *> const& lines, std::function<void(AssDialogue&)> action) {
 	std::map<int, bool> visited;
 	for (AssDialogue *line : lines) {
-		if (line->Fold.parent != nullptr && !(line->Fold.valid && !line->Fold.side)) {
-			line = line->Fold.parent;
+		if (!line->Fold.valid && !line->Fold.side) {
+			if (line->Fold.parent != nullptr) {
+				line = line->Fold.parent;
+			} else {
+				continue;
+			}
 		}
 		if (visited.count(line->Row))
 			continue;
@@ -367,4 +371,17 @@ bool FoldController::AreFoldsAt(std::vector<AssDialogue *> const& lines) {
 		hasfold = hasfold || line.Fold.valid;
 	});
 	return hasfold;
+}
+
+std::set<AssDialogue *> FoldController::LinesInsideFolds(std::vector<AssDialogue *> const& lines, bool include_ends) {
+	std::set<AssDialogue *> result;
+
+	DoForFoldsAt(lines, [&](AssDialogue &line) {
+		int offset = include_ends ? 0 : 1;
+		for (auto it = std::next(context->ass->Events.begin(), line.Row + offset); it->Row <= line.Fold.counterpart->Row - offset; it++) {
+			result.insert(&*it);
+		}
+	});
+
+	return result;
 }

@@ -174,4 +174,8 @@ public:
 	/// @param lines The lines
 	bool AreFoldsAt(std::vector<AssDialogue *> const& lines);
 
+	/// @brief Returns whether any of the given lines are contained in folds
+	/// @param lines The lines
+	std::set<AssDialogue *> LinesInsideFolds(std::vector<AssDialogue *> const& lines, bool include_ends);
+
 };

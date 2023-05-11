@@ -21,6 +21,7 @@
 #include "compat.h"
 #include "include/aegisub/context.h"
 #include "options.h"
+#include "selection_controller.h"
 #include "video_controller.h"
 #include "fold_controller.h"
 
@@ -148,8 +149,19 @@ struct GridColumnFolds final : GridColumn {
 	}
 
 	bool OnMouseEvent(AssDialogue *d, agi::Context *c, wxMouseEvent &event) const override {
-		if ((event.LeftDown() || event.LeftDClick()) && !event.ShiftDown() && !event.CmdDown() && !event.AltDown()) {
-			if (d->Fold.hasFold() && !d->Fold.isEnd()) {
+		if (d->Fold.hasFold() && !d->Fold.isEnd()) {
+			if ((event.LeftDown() || event.LeftDClick()) && !event.ShiftDown() && !event.CmdDown() && !event.AltDown()) {
+				c->foldController->ToggleFoldsAt({d});
+				return true;
+			}
+		} else {
+			if (event.LeftDClick()) {
+				Selection lines = c->foldController->LinesInsideFolds({d}, event.ShiftDown());
+				if (!lines.empty()) {
+					c->selectionController->SetSelectedSet(std::move(lines));
+				}
+				return true;
+			} else if (event.LeftDown() && event.AltDown()) {
 				c->foldController->ToggleFoldsAt({d});
 				return true;
 			}
