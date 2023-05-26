@@ -231,6 +231,59 @@ subs.insert(i, line[, line2, ...])
   Insert one or more lines before index i.
 
 
+Applying or reverting changes
+
+The following functions can only be used in macro features,
+they will have no effect when used in any other feature.
+
+function subs.apply([message], [selected_lines], [active_line])
+  Applies all changes made so far and displays them in Aegisub's window.
+  If there are pending changes that have not yet been committed with
+  aegisub.set_undo_point(), an additional undo-point will be made.
+  Successive undo-points of this type will be squashed, but manually
+  added undo-points will not.
+
+@selected_lines (table)
+  An Array Table of integers that will be the new selection after applying,
+  as would be returned by a macro processing function.
+
+@active_line (number)
+  The new active line, as would be returned by a macro processing function.
+
+@message (string)
+  The description of the automatically generated undo-point, if one is added.
+
+Returns: 3 values
+  1. A number which can be passed to subs.rollback() to later revert to this
+     exact state. If a future automatically generated undo-point gets squashed
+     onto this one, this commit's number will be invalidated.
+
+  2. An Array Table of numbers, which is the new selection after applying.
+  If a nonempty selection table was given in the parameters, this will be
+  that same table.
+
+  3. A number, which is the new active line index after applying. If a correct
+     new active line index was given in the parameters, this will be that index.
+
+subs.rollback([n, [silent]])
+  Rolls back the state of the subtitle object to the state after the
+  corresponding call to subs.apply() that returned the given number n.
+  If n is 0 or nil, this function will instead roll back all changes
+  made to the subtitle object since the current macro was called.
+
+@n (number)
+  The number associated to an undo-point.
+
+@silent (bool)
+  Whether to perform the rollback silently. If true, this will not update the
+  UI state or render the new subtitles after rolling back.
+  Defaults to false.
+
+Returns: 2 values
+  1. An Array Table of numbers, which is the new selection after reverting.
+
+  2. A number, which is the new active line index after reverting.
+
 Effeciency concerns
 
 Internally in Aegisub the subtitles are stored in a linked list, meaning

@@ -51,6 +51,9 @@ namespace Automation4 {
 		/// Pointer to file being modified
 		AssFile *ass;
 
+		/// Context, used for getting and setting selection
+		agi::Context *c;
+
 		/// Lua state the object exists in
 		lua_State *L;
 
@@ -66,12 +69,17 @@ namespace Automation4 {
 		/// How ass file been modified by the script since the last commit
 		int modification_type = 0;
 
+		int initial_undo_id = 0;
+		bool has_unannounced_commit = false;
+		bool has_committed = false;
+
 		/// Reference count used to avoid deleting this until both lua and the
 		/// calling C++ code are done with it
 		int references = 2;
 
 		/// Set of subtitle lines being modified; initially a shallow copy of ass->Line
 		std::vector<AssEntry*> lines;
+		int last_commit_id = 0;
 		bool script_info_copied = false;
 
 		/// Commits to apply once processing completes successfully
@@ -109,10 +117,20 @@ namespace Automation4 {
 		int LuaGetScriptResolution(lua_State *L);
 
 		void LuaSetUndoPoint(lua_State *L);
+		int LuaApply(lua_State *L);
+		int LuaRollback(lua_State *L);
+
+		void InitLines();
+		void SetOriginalSelActive();
+		int WrapCommit(wxString const& desc, int type, int commitId = -1);
 
 		// LuaAssFile can only be deleted by the reference count hitting zero
 		~LuaAssFile();
 	public:
+		int original_offset = 0;
+		std::vector<int> original_sel;
+		int original_active = 0;
+
 		static LuaAssFile *GetObjPointer(lua_State *L, int idx, bool allow_expired);
 
 		/// makes a Lua representation of AssEntry and places on the top of the stack
@@ -128,15 +146,29 @@ namespace Automation4 {
 		///                 description
 		std::vector<AssEntry *> ProcessingComplete(wxString const& undo_description = wxString());
 
+		/// @brief Applies any (committed or uncommitted) changes made by the script
+		/// @param set_undo If there's any uncommitted changes to the file,
+		///                 they will be automatically committed with this
+		///                 description
+		void ApplyChanges(wxString const& undo_description = wxString());
+
+		/// Reads a selection Array List and a number specifying the active line
+		/// from the Lua stack and applies them. Always pops two values from the stack.
+		/// Values may be nil.
+		void UpdateSelectionAndActive(lua_State *L);
+
+		void DropUnappliedChanges();
+
 		/// End processing without applying any changes made
 		void Cancel();
 
 		/// Constructor
 		/// @param L lua state
+		/// @param c Context. Can be nullptr if the script does not need to acess the sselection
 		/// @param ass File to wrap
 		/// @param can_modify Is modifying the file allowed?
 		/// @param can_set_undo Is setting undo points allowed?
-		LuaAssFile(lua_State *L, AssFile *ass, bool can_modify = false, bool can_set_undo = false);
+		LuaAssFile(lua_State *L, agi::Context *c, AssFile *ass, bool can_modify = false, bool can_set_undo = false);
 	};
 
 	class LuaProgressSink {
@@ -161,6 +193,8 @@ namespace Automation4 {
 	/// Base class for controls in dialogs
 	class LuaDialogControl {
 	public:
+		typedef std::function<void()> ChangeCallback;
+
 		/// Name of this control in the output table
 		std::string name;
 
@@ -170,7 +204,7 @@ namespace Automation4 {
 		int x, y, width, height;
 
 		/// Create the associated wxControl
-		virtual wxControl *Create(wxWindow *parent) = 0;
+		virtual wxControl *Create(wxWindow *parent, ChangeCallback changeHandler) = 0;
 
 		/// Get the default flags to use when inserting this control into a sizer
 		virtual int GetSizerFlags() const { return wxEXPAND; }
@@ -197,6 +231,8 @@ namespace Automation4 {
 
 	/// A lua-generated dialog or panel in the export options dialog
 	class LuaDialog final : public ScriptDialog {
+		typedef std::function<void(std::string const&, bool)> ErrorLogger;
+
 		/// Controls in this dialog
 		std::vector<std::unique_ptr<LuaDialogControl>> controls;
 		/// The names and IDs of buttons in this dialog if non-default ones were used
@@ -208,14 +244,28 @@ namespace Automation4 {
 		/// Id of the button pushed (once a button has been pushed)
 		int button_pushed = -1;
 
+		lua_State *L;
+
+		int myid;
+
+		/// Whether there's a callback to call when values change
+		bool has_callback = false;
+
+		/// Specifies when we can start calling the lua callback on changes,
+		/// to not call too much on false positives.
+		bool can_call_callback = false;
+
+		ErrorLogger error_logger = nullptr;
+
 		wxWindow *window = nullptr;
 
 	public:
-		LuaDialog(lua_State *L, bool include_buttons);
+		LuaDialog(lua_State *L, bool include_buttons, ErrorLogger logger = nullptr);
+		~LuaDialog();
 
 		/// Push the values of the controls in this dialog onto the lua stack
 		/// in a single table
-		int LuaReadBack(lua_State *L);
+		int LuaReadBack();
 
 		// ScriptDialog implementation
 		wxWindow* CreateWindow(wxWindow *parent) override;

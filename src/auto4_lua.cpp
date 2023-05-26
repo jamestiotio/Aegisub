@@ -896,18 +896,6 @@ namespace {
 		LuaScript::GetScriptObject(L)->UnregisterCommand(this);
 	}
 
-	static std::vector<int> selected_rows(const agi::Context *c)
-	{
-		auto const& sel = c->selectionController->GetSelectedSet();
-		int offset = c->ass->Info.size() + c->ass->Styles.size();
-		std::vector<int> rows;
-		rows.reserve(sel.size());
-		for (auto line : sel)
-			rows.push_back(line->Row + offset + 1);
-		sort(begin(rows), end(rows));
-		return rows;
-	}
-
 	bool LuaCommand::Validate(const agi::Context *c)
 	{
 		if (!(cmd_type & cmd::COMMAND_VALIDATE)) return true;
@@ -918,11 +906,11 @@ namespace {
 		lua_pushcclosure(L, add_stack_trace, 0);
 
 		GetFeatureFunction("validate");
-		auto subsobj = new LuaAssFile(L, c->ass.get());
+		auto subsobj = new LuaAssFile(L, const_cast<agi::Context *>(c), c->ass.get());
 
-		push_value(L, selected_rows(c));
-		if (auto active_line = c->selectionController->GetActiveLine())
-			push_value(L, active_line->Row + c->ass->Info.size() + c->ass->Styles.size() + 1);
+		push_value(L, subsobj->original_sel);
+		if (subsobj->original_active)
+			push_value(L, subsobj->original_active);
 		else
 			lua_pushnil(L);
 
@@ -956,16 +944,10 @@ namespace {
 		stackcheck.check_stack(0);
 
 		GetFeatureFunction("run");
-		auto subsobj = new LuaAssFile(L, c->ass.get(), true, true);
+		auto subsobj = new LuaAssFile(L, c, c->ass.get(), true, true);
 
-		int original_offset = c->ass->Info.size() + c->ass->Styles.size() + 1;
-		auto original_sel = selected_rows(c);
-		int original_active = 0;
-		if (auto active_line = c->selectionController->GetActiveLine())
-			original_active = active_line->Row + original_offset;
-
-		push_value(L, original_sel);
-		push_value(L, original_active);
+		push_value(L, subsobj->original_sel);
+		push_value(L, subsobj->original_active);
 
 		try {
 			LuaThreadedCall(L, 3, 2, from_wx(StrDisplay(c)), c->parent, true);
@@ -975,79 +957,11 @@ namespace {
 			stackcheck.check_stack(0);
 			return;
 		}
-
-		auto lines = subsobj->ProcessingComplete(StrDisplay(c));
-
-		AssDialogue *active_line = nullptr;
-		int active_idx = original_active;
-
-		// Check for a new active row
-		if (lua_isnumber(L, -1)) {
-			active_idx = lua_tointeger(L, -1);
-			if (active_idx < 1 || active_idx > (int)lines.size()) {
-				wxLogError("Active row %d is out of bounds (must be 1-%u)", active_idx, lines.size());
-				active_idx = original_active;
-			}
-		}
-
 		stackcheck.check_stack(2);
-		lua_pop(L, 1);
 
-		// top of stack will be selected lines array, if any was returned
-		if (lua_istable(L, -1)) {
-			std::set<AssDialogue*> sel;
-			lua_for_each(L, [&] {
-				if (!lua_isnumber(L, -1))
-					return;
-				int cur = lua_tointeger(L, -1);
-				if (cur < 1 || cur > (int)lines.size()) {
-					wxLogError("Selected row %d is out of bounds (must be 1-%u)", cur, lines.size());
-					throw LuaForEachBreak();
-				}
-
-				if (typeid(*lines[cur - 1]) != typeid(AssDialogue)) {
-					wxLogError("Selected row %d is not a dialogue line", cur);
-					throw LuaForEachBreak();
-				}
-
-				auto diag = static_cast<AssDialogue*>(lines[cur - 1]);
-				sel.insert(diag);
-				if (!active_line || active_idx == cur)
-					active_line = diag;
-			});
-
-			AssDialogue *new_active = c->selectionController->GetActiveLine();
-			if (active_line && (active_idx > 0 || !sel.count(new_active)))
-				new_active = active_line;
-			if (sel.empty())
-				sel.insert(new_active);
-			c->selectionController->SetSelectionAndActive(std::move(sel), new_active);
-		}
-		else {
-			lua_pop(L, 1);
-
-			Selection new_sel;
-			AssDialogue *new_active = nullptr;
-
-			int prev = original_offset;
-			auto it = c->ass->Events.begin();
-			for (int row : original_sel) {
-				while (row > prev && it != c->ass->Events.end()) {
-					++prev;
-					++it;
-				}
-				if (it == c->ass->Events.end()) break;
-				new_sel.insert(&*it);
-				if (row == original_active)
-					new_active = &*it;
-			}
-
-			if (new_sel.empty() && !c->ass->Events.empty())
-				new_sel.insert(&c->ass->Events.front());
-			if (!new_sel.count(new_active))
-				new_active = *new_sel.begin();
-			c->selectionController->SetSelectionAndActive(std::move(new_sel), new_active);
-		}
+		subsobj->ApplyChanges(StrDisplay(c));
+		subsobj->UpdateSelectionAndActive(L);
+		subsobj->ProcessingComplete(StrDisplay(c));
 		c->textSelectionController->CommitStagedChanges();
 
 		stackcheck.check_stack(0);
@@ -1063,8 +977,8 @@ namespace {
 		stackcheck.check_stack(0);
 
 		GetFeatureFunction("isactive");
-		auto subsobj = new LuaAssFile(L, c->ass.get());
-		push_value(L, selected_rows(c));
+		auto subsobj = new LuaAssFile(L, const_cast<agi::Context *>(c), c->ass.get());
+		push_value(L, subsobj->original_sel);
 		if (auto active_line = c->selectionController->GetActiveLine())
 			push_value(L, active_line->Row + c->ass->Info.size() + c->ass->Styles.size() + 1);
 
@@ -1132,7 +1046,7 @@ namespace {
 
 		// The entire point of an export filter is to modify the file, but
 		// setting undo points makes no sense
-		auto subsobj = new LuaAssFile(L, subs, true);
+		auto subsobj = new LuaAssFile(L, nullptr, subs, true);
 		assert(lua_isuserdata(L, -1));
 		stackcheck.check_stack(2);
 
@@ -1170,7 +1084,7 @@ namespace {
 		GetFeatureFunction("config");
 
 		// prepare function call
-		auto subsobj = new LuaAssFile(L, c->ass.get());
+		auto subsobj = new LuaAssFile(L, c, c->ass.get());
 		// stored options
 		lua_newtable(L); // TODO, nothing for now
 

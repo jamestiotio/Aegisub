@@ -123,10 +123,17 @@ public:
 	DEFINE_SIGNAL_ADDERS(FileOpen, AddFileOpenListener)
 	DEFINE_SIGNAL_ADDERS(FileSave, AddFileSaveListener)
 
+	/// @brief Returns an id to a state that can later be used to roll back to it
+	int GetUndoStateID() const;
+	/// @brief Roll back to an undo step given an ID returned by GetUndoStateID,
+	///        provided that it is still in the undo stack
+	/// @return Whether the roll back succeeded
+	bool Rollback(int id);
 	/// @brief Undo the last set of changes to the file
 	void Undo();
 	/// @brief Redo the last undone changes
 	void Redo();
+
 	/// Check if undo stack is empty
 	bool IsUndoStackEmpty() const { return undo_stack.size() <= 1; };
 	/// Check if redo stack is empty

@@ -40,7 +40,11 @@
 #include "ass_karaoke.h"
 #include "ass_style.h"
 #include "compat.h"
+#include "include/aegisub/context.h"
+#include "selection_controller.h"
+#include "subs_controller.h"
 
+#include <libaegisub/dispatch.h>
 #include <libaegisub/exception.h>
 #include <libaegisub/log.h>
 #include <libaegisub/lua/utils.h>
@@ -368,6 +372,10 @@ namespace Automation4 {
 					lua_pushcclosure(L, closure_wrapper_v<&LuaAssFile::ObjectAppend, false>, 1);
 				else if (strcmp(idx, "script_resolution") == 0)
 					lua_pushcclosure(L, closure_wrapper<&LuaAssFile::LuaGetScriptResolution>, 1);
+				else if (strcmp(idx, "apply") == 0)
+					lua_pushcclosure(L, closure_wrapper<&LuaAssFile::LuaApply>, 1);
+				else if (strcmp(idx, "rollback") == 0)
+					lua_pushcclosure(L, closure_wrapper<&LuaAssFile::LuaRollback>, 1);
 				else {
 					// idiot
 					lua_pop(L, 1);
@@ -673,6 +681,75 @@ namespace Automation4 {
 		return 2;
 	}
 
+	int LuaAssFile::LuaApply(lua_State *L)
+	{
+		CheckAllowModify();
+		if (!can_set_undo || c == nullptr)
+			error(L, "Attempt to apply intermediate changes in a context where it makes no sense to do so.");
+
+		agi::dispatch::EnsureMain([&]() {
+			std::string commitmsg = "Intermediate commit";
+			if (lua_isstring(L, 1)) {
+				commitmsg = check_string(L, 1);
+				lua_remove(L, 1);
+			}
+
+			ApplyChanges(commitmsg);
+
+			if (lua_gettop(L) > 2)
+				lua_pop(L, lua_gettop(L) - 2);
+			while (lua_gettop(L) < 2)
+				lua_pushnil(L);
+
+			UpdateSelectionAndActive(L);
+			SetOriginalSelActive();
+
+			push_value(L, c->subsController->GetUndoStateID());
+			push_value(L, original_sel);
+			push_value(L, original_active);
+		});
+
+		return 3;
+	}
+
+	int LuaAssFile::LuaRollback(lua_State *L)
+	{
+		CheckAllowModify();
+		if (!can_set_undo || c == nullptr)
+			error(L, "Attempt to revert changes in a context where it makes no sense to do so.");
+
+		int id = 0;
+		bool silent = false;
+		if (lua_isnumber(L, 1)) {
+			id = check_int(L, 1);
+			if (lua_gettop(L) >= 2) {
+				silent = lua_toboolean(L, 2);
+			}
+		}
+
+		if (has_committed || modification_type) {
+			bool result;
+			DropUnappliedChanges();
+
+			agi::dispatch::EnsureMain([&]() {
+				result = c->subsController->Rollback(id == 0 ? initial_undo_id : id);
+				has_unannounced_commit = silent;
+
+				has_committed = true;
+				SetOriginalSelActive();
+				InitLines();
+			});
+
+			if (!result)
+				error(L, "Failed to roll back to previous subtitle state.");
+		}
+
+		push_value(L, original_sel);
+		push_value(L, original_active);
+
+		return 2;
+	}
+
 	void LuaAssFile::LuaSetUndoPoint(lua_State *L)
 	{
 		if (!can_set_undo)
@@ -699,7 +776,112 @@ namespace Automation4 {
 		return laf;
 	}
 
-	std::vector<AssEntry *> LuaAssFile::ProcessingComplete(wxString const& undo_description)
+	static std::vector<int> selected_rows(const agi::Context *c)
+	{
+		auto const& sel = c->selectionController->GetSelectedSet();
+		int offset = c->ass->Info.size() + c->ass->Styles.size();
+		std::vector<int> rows;
+		rows.reserve(sel.size());
+		for (auto line : sel)
+			rows.push_back(line->Row + offset + 1);
+		sort(begin(rows), end(rows));
+		return rows;
+	}
+
+	void LuaAssFile::SetOriginalSelActive() {
+		original_offset = c->ass->Info.size() + c->ass->Styles.size() + 1;
+		original_sel = selected_rows(c);
+		if (auto active_line = c->selectionController->GetActiveLine())
+			original_active = active_line->Row + original_offset;
+	}
+
+	void LuaAssFile::UpdateSelectionAndActive(lua_State *L)
+	{
+		if (c == nullptr)
+			error(L, "Asked to update selection with no context set. This shouldn't ever happen.");
+
+		AssDialogue *active_line = nullptr;
+		int active_idx = original_active;
+
+		// Check for a new active row
+		if (lua_isnumber(L, -1)) {
+			active_idx = lua_tointeger(L, -1);
+			if (active_idx < 1 || active_idx > (int)lines.size()) {
+				wxLogError("Active row %d is out of bounds (must be 1-%u)", active_idx, lines.size());
+				active_idx = original_active;
+			}
+		}
+
+		lua_pop(L, 1);
+
+		// top of stack will be selected lines array, if any was returned
+		if (lua_istable(L, -1)) {
+			std::set<AssDialogue*> sel;
+			lua_for_each(L, [&] {
+				if (!lua_isnumber(L, -1))
+					return;
+				int cur = lua_tointeger(L, -1);
+				if (cur < 1 || cur > (int)lines.size()) {
+					wxLogError("Selected row %d is out of bounds (must be 1-%u)", cur, lines.size());
+					throw LuaForEachBreak();
+				}
+
+				if (typeid(*lines[cur - 1]) != typeid(AssDialogue)) {
+					wxLogError("Selected row %d is not a dialogue line", cur);
+					throw LuaForEachBreak();
+				}
+
+				auto diag = static_cast<AssDialogue*>(lines[cur - 1]);
+				sel.insert(diag);
+				if (!active_line || active_idx == cur)
+					active_line = diag;
+			});
+
+			AssDialogue *new_active = c->selectionController->GetActiveLine();
+			if (active_line && (active_idx > 0 || !sel.count(new_active)))
+				new_active = active_line;
+			if (sel.empty())
+				sel.insert(new_active);
+			c->selectionController->SetSelectionAndActive(std::move(sel), new_active);
+		}
+		else {
+			lua_pop(L, 1);
+
+			Selection new_sel;
+			AssDialogue *new_active = nullptr;
+
+			int prev = original_offset;
+			auto it = c->ass->Events.begin();
+			for (int row : original_sel) {
+				while (row > prev && it != c->ass->Events.end()) {
+					++prev;
+					++it;
+				}
+				if (it == c->ass->Events.end()) break;
+				new_sel.insert(&*it);
+				if (row == original_active)
+					new_active = &*it;
+			}
+
+			if (new_sel.empty() && !c->ass->Events.empty())
+				new_sel.insert(&c->ass->Events.front());
+			if (!new_sel.count(new_active))
+				new_active = *new_sel.begin();
+			c->selectionController->SetSelectionAndActive(std::move(new_sel), new_active);
+		}
+	}
+
+	int LuaAssFile::WrapCommit(wxString const& desc, int type, int commitId)
+	{
+		if (has_unannounced_commit) {
+			type = AssFile::COMMIT_NEW;
+			has_unannounced_commit = false;
+		}
+		has_committed = true;
+		return ass->Commit(desc, type, commitId);
+	}
+
+	void LuaAssFile::ApplyChanges(wxString const& undo_description)
 	{
 		auto apply_lines = [&](std::vector<AssEntry *> const& lines) {
 			if (script_info_copied)
@@ -720,16 +902,24 @@ namespace Automation4 {
 		// Apply any pending commits
 		for (auto const& pc : pending_commits) {
 			apply_lines(pc.lines);
-			ass->Commit(pc.mesage, pc.modification_type);
+			WrapCommit(pc.mesage, pc.modification_type);
 		}
+		pending_commits.clear();
 
 		// Commit any changes after the last undo point was set
 		if (modification_type)
 			apply_lines(lines);
 		if (modification_type && can_set_undo && !undo_description.empty())
-			ass->Commit(undo_description, modification_type);
+			last_commit_id = WrapCommit(undo_description, modification_type, last_commit_id);
+		modification_type = 0;
 
 		lines_to_delete.clear();
+		allocated_lines.clear();
+	}
+
+	std::vector<AssEntry *> LuaAssFile::ProcessingComplete(wxString const& undo_description)
+	{
+		ApplyChanges(undo_description);
 
 		auto ret = std::move(lines);
 		references--;
@@ -737,26 +927,48 @@ namespace Automation4 {
 		return ret;
 	}
 
-	void LuaAssFile::Cancel()
+	void LuaAssFile::DropUnappliedChanges()
 	{
 		for (auto& line : lines_to_delete) line.release();
 		for (AssEntry *line : allocated_lines) delete line;
+		lines_to_delete.clear();
+		allocated_lines.clear();
+		pending_commits.clear();
+		modification_type = 0;
+	}
+
+	void LuaAssFile::Cancel()
+	{
+		DropUnappliedChanges();
+		if (has_committed)
+			c->subsController->Rollback(initial_undo_id);
 		references--;
 		if (!references) delete this;
 	}
 
-	LuaAssFile::LuaAssFile(lua_State *L, AssFile *ass, bool can_modify, bool can_set_undo)
-	: ass(ass)
-	, L(L)
-	, can_modify(can_modify)
-	, can_set_undo(can_set_undo)
-	{
+	void LuaAssFile::InitLines() {
+		script_info_copied = false;
+		lines.clear();
 		for (auto& line : ass->Info)
 			lines.push_back(nullptr);
 		for (auto& line : ass->Styles)
 			lines.push_back(&line);
 		for (auto& line : ass->Events)
 			lines.push_back(&line);
+	}
+
+	LuaAssFile::LuaAssFile(lua_State *L, agi::Context *c, AssFile *ass, bool can_modify, bool can_set_undo)
+	: ass(ass)
+	, c(c)
+	, L(L)
+	, can_modify(can_modify)
+	, can_set_undo(can_set_undo)
+	{
+		if (c != nullptr) {
+			initial_undo_id = c->subsController->GetUndoStateID();
+			SetOriginalSelActive();
+		}
+		InitLines();
 
 		// prepare userdata object
 		*static_cast<LuaAssFile**>(lua_newuserdata(L, sizeof(LuaAssFile*))) = this;

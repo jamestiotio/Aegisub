@@ -366,15 +366,31 @@ void SubsController::OnTextSelectionChanged() {
 		undo_stack.back().UpdateTextSelection(context);
 }
 
-void SubsController::Undo() {
-	if (undo_stack.size() <= 1) return;
-	redo_stack.splice(redo_stack.end(), undo_stack, std::prev(undo_stack.end()));
+int SubsController::GetUndoStateID() const {
+	return undo_stack.size() ? undo_stack.back().commit_id : commit_id;
+}
+
+bool SubsController::Rollback(int id)  {
+	if (undo_stack.empty()) return false;
+
+	if (!std::any_of(undo_stack.cbegin(), undo_stack.cend(), [=](UndoInfo info) { return info.commit_id == id; }))
+		return false;
+
+	while (undo_stack.back().commit_id != id)
+		redo_stack.splice(redo_stack.end(), undo_stack, std::prev(undo_stack.end()));
 
 	commit_id = undo_stack.back().commit_id;
 
 	text_selection_connection.Block();
 	undo_stack.back().Apply(context);
 	text_selection_connection.Unblock();
+
+	return true;
+}
+
+void SubsController::Undo() {
+	if (undo_stack.size() <= 1) return;
+	Rollback(std::prev(undo_stack.end(), 2)->commit_id);
 }
 
 void SubsController::Redo() {
