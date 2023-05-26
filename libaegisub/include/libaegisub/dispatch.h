@@ -41,6 +41,11 @@ namespace agi {
 		/// Get the main queue, which runs on the GUI thread
 		Queue& Main();
 
+
+		/// Ensure that the thunk is run on the main thread, without deadlocking
+		/// when already on the main thread
+		void EnsureMain(Thunk thunk);
+
 		/// Get the generic background queue, which runs thunks in parallel
 		Queue& Background();
 

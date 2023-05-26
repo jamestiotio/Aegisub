@@ -189,11 +189,21 @@ namespace Automation4 {
 	{
 		ProgressSink *ps = GetObjPointer(L, lua_upvalueindex(1));
 
-		LuaDialog dlg(L, true); // magically creates the config dialog structure etc
+		bool cancelled = false;
+		LuaDialog dlg(L, true, [&] (std::string const& error, bool cancel) {
+			ps->Log(error);
+			cancelled = cancelled || cancel;
+		}); // magically creates the config dialog structure etc
+
 		ps->ShowDialog(&dlg);
 
+		if (cancelled) {
+			lua_pushnil(L);
+			throw error_tag();
+		}
+
 		// more magic: puts two values on stack: button pushed and table with control results
-		return dlg.LuaReadBack(L);
+		return dlg.LuaReadBack();
 	}
 
 	int LuaProgressSink::LuaDisplayOpenDialog(lua_State *L)

@@ -29,6 +29,7 @@ namespace {
 	boost::asio::io_service *service;
 	std::function<void (agi::dispatch::Thunk)> invoke_main;
 	std::atomic<uint_fast32_t> threads_running;
+	thread_local bool is_main_thread;
 
 	class MainQueue final : public agi::dispatch::Queue {
 		void DoInvoke(agi::dispatch::Thunk thunk) override {
@@ -78,10 +79,12 @@ void Init(std::function<void (Thunk)> invoke_main) {
 	static IOServiceThreadPool thread_pool;
 	::service = &thread_pool.io_service;
 	::invoke_main = invoke_main;
+	::is_main_thread = true;
 
 	thread_pool.threads.reserve(std::max<unsigned>(4, std::thread::hardware_concurrency()));
 	for (size_t i = 0; i < thread_pool.threads.capacity(); ++i) {
 		thread_pool.threads.emplace_back([]{
+			::is_main_thread = false;
 			++threads_running;
 			agi::util::SetThreadName("Dispatch Worker");
 			service->run();
@@ -121,6 +124,14 @@ void Queue::Sync(Thunk thunk) {
 	});
 	cv.wait(l, [&]{ return done; });
 	if (e) std::rethrow_exception(e);
+}
+
+void EnsureMain(Thunk thunk) {
+	if (::is_main_thread) {
+		thunk();
+	} else {
+		Main().Sync(thunk);
+	}
 }
 
 Queue& Main() {

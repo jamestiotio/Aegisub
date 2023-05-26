@@ -128,7 +128,7 @@ namespace {
 	const char *clipboard_get()
 	{
 		std::string data;
-		agi::dispatch::Main().Sync([&] { data = GetClipboard(); });
+		agi::dispatch::EnsureMain([&] { data = GetClipboard(); });
 		if (data.empty())
 			return nullptr;
 		return strndup(data);
@@ -138,7 +138,7 @@ namespace {
 	{
 		bool succeeded = false;
 
-		agi::dispatch::Main().Sync([&] {
+		agi::dispatch::EnsureMain([&] {
 			wxClipboard &cb = *wxTheClipboard;
 			if (cb.Open()) {
 				succeeded = cb.SetData(new wxTextDataObject(wxString::FromUTF8(str)));
@@ -1138,7 +1138,7 @@ namespace {
 
 		// config
 		if (has_config && config_dialog) {
-			int results_produced = config_dialog->LuaReadBack(L);
+			int results_produced = config_dialog->LuaReadBack();
 			assert(results_produced == 1);
 			(void) results_produced;	// avoid warning on release builds
 			// TODO, write back stored options here
