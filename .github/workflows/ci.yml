@@ -6,6 +6,7 @@ on:
       - master
       - feature
       - cibuilds
+      - buildtests
   pull_request:
     branches:
       - master
