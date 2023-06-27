@@ -23,6 +23,7 @@ subprojects/avisynth
 subprojects/bestsource/
 subprojects/boost*/
 subprojects/cairo*
+subprojects/curl-*
 subprojects/dav1d
 subprojects/ffmpeg
 subprojects/ffms2
