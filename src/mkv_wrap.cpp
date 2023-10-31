@@ -248,7 +248,7 @@ void MatroskaWrapper::GetSubtitles(agi::fs::path const& filename, AssFile *targe
 
 	// Progress bar
 	auto totalTime = double(segInfo->Duration) / timecodeScale;
-	DialogProgress progress(nullptr, _("Parsing Matroska"), _("Reading subtitles from Matroska file."));
+	OptDialogProgress progress(nullptr, _("Parsing Matroska"), _("Reading subtitles from Matroska file."));
 	progress.Run([&](agi::ProgressSink *ps) { read_subtitles(ps, file, &input, srt, totalTime, &parser); });
 }
 

@@ -59,6 +59,23 @@ namespace agi {
 		virtual bool IsCancelled()=0;
 	};
 
+	/// @class DummyProgressSink
+	/// @brief A progress sink that doesn't do anything with its progress updates except print logs
+	class CLIProgressSink : public ProgressSink {
+		std::ostream &stream;
+
+	public:
+		CLIProgressSink(std::ostream &stream = std::cout) : stream(stream) {};
+
+		void SetIndeterminate() {}
+		void SetTitle(std::string const& title) {}
+		void SetMessage(std::string const& title) {}
+		void SetProgress(int64_t cur, int64_t max) {}
+		void Log(std::string const& str) { stream << str; }
+		void SetStayOpen(bool stayopen) {}
+		bool IsCancelled() { return false; }
+	};
+
 	/// @class BackgroundRunner
 	/// @brief A class which runs a function, providing it with a progress sink
 	///
