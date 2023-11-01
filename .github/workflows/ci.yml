@@ -174,12 +174,16 @@ jobs:
           cpp = 'clang++'
           objc = 'clang'
           objc++ = 'clang++'
+          pkg-config = 'arm64-homebrew/bin/pkg-config'
+
+          [constants]
+          target_flags = ['target', 'arm64-apple-macos11']
 
           [built-in options]
-          c_args = ['target', 'arm64-apple-macos11']
-          cpp_args = ['target', 'arm64-apple-macos11']
-          objc_args = ['target', 'arm64-apple-macos11']
-          objcpp_args = ['target', 'arm64-apple-macos11']
+          c_args = target_flags
+          cpp_args = target_flags
+          objc_args = target_flags
+          objcpp_args = target_flags
 
           [host_machine]
           system = 'darwin'
