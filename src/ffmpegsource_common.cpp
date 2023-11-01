@@ -37,6 +37,7 @@
 
 #include "compat.h"
 #include "format.h"
+#include "gui_wrap.h"
 #include "options.h"
 #include "utils.h"
 
@@ -127,7 +128,8 @@ FFmpegSourceProvider::AskForTrackSelection(const std::map<int, std::string> &Tra
 		TrackNumbers.push_back(track.first);
 	}
 
-	int Choice = wxGetSingleChoiceIndex(
+	int Choice = wrapChoiceDialog(
+		Type == FFMS_TYPE_VIDEO ? "video-track" : "audio-track",
 		Type == FFMS_TYPE_VIDEO ? _("Multiple video tracks detected, please choose the one you wish to load:") : _("Multiple audio tracks detected, please choose the one you wish to load:"),
 		Type == FFMS_TYPE_VIDEO ? _("Choose video track") : _("Choose audio track"),
 		Choices);
