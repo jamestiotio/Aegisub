@@ -154,7 +154,7 @@ jobs:
           mkdir arm64-homebrew
           curl -L https://github.com/Homebrew/brew/tarball/master | tar xz --strip 1 -C arm64-homebrew
 
-          for package in pkg-config libass zlib fftw hunspell pulseaudio; do
+          for package in pkg-config libass zlib ffmpeg fftw hunspell pulseaudio; do
             arm64-homebrew/bin/brew fetch --force --bottle-tag=arm64_big_sur ${package}
             arm64-homebrew/bin/brew install $(arm64-homebrew/bin/brew --cache --bottle-tag=arm64_big_sur ${package})
           done
