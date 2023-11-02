@@ -159,6 +159,7 @@ jobs:
           curl -L https://github.com/Homebrew/brew/tarball/master | tar xz --strip 1 -C arm64-homebrew
 
           armbrew=arm64-homebrew/bin/brew
+          arch=arm64_monterey
 
           ${armbrew} update
 
