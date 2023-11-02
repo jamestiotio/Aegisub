@@ -163,6 +163,8 @@ jobs:
             arm64-homebrew/bin/brew install $(arm64-homebrew/bin/brew --cache --bottle-tag=arm64_big_sur ${package})
           done
 
+          file arm64-homebrew/lib/*
+
       - name: Install dependencies (Linux)
         if: startsWith(matrix.config.os, 'ubuntu-')
         run: |
@@ -177,7 +179,7 @@ jobs:
           c = 'cc'
           cpp = 'c++'
           objc = 'cc'
-          objc++ = 'c++'
+          objcpp = 'c++'
           pkg-config = '/Users/runner/work/arm64-homebrew/bin/pkg-config'
 
           [constants]
