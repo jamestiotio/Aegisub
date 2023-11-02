@@ -216,7 +216,7 @@ jobs:
           endian = 'little'
 
           [properties]
-          pkg_config_libdir = '/Users/runner/work/arm64-homebrew/lib/pkgconfig'
+          pkg_config_libdir = '/Users/runner/work/arm64-homebrew/opt/icu4c/lib/pkgconfig:/Users/runner/work/arm64-homebrew/lib/pkgconfig'
           EOT
 
       - name: Configure
