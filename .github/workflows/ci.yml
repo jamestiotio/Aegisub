@@ -151,6 +151,9 @@ jobs:
       - name: Install dependencies (MacOS arm64)
         if: matrix.config.os == 'macos-latest' && matrix.config.host == 'arm64'
         run: |
+          brew update
+          brew install ninja
+
           cd /Users/runner/work
           mkdir arm64-homebrew
           curl -L https://github.com/Homebrew/brew/tarball/master | tar xz --strip 1 -C arm64-homebrew
