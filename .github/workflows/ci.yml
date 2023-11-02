@@ -158,12 +158,29 @@ jobs:
           mkdir arm64-homebrew
           curl -L https://github.com/Homebrew/brew/tarball/master | tar xz --strip 1 -C arm64-homebrew
 
-          for package in pkg-config libass zlib ffmpeg fftw hunspell pulseaudio; do
-            arm64-homebrew/bin/brew fetch --force --bottle-tag=arm64_big_sur ${package}
-            arm64-homebrew/bin/brew install $(arm64-homebrew/bin/brew --cache --bottle-tag=arm64_big_sur ${package})
-          done
+          armbrew=arm64-homebrew/bin/brew
 
-          file arm64-homebrew/lib/*
+          ${armbrew} update
+
+          function install_package () {
+              ${armbrew} list "$1" > /dev/null 2> /dev/null && return 0
+              deps=$(${armbrew} deps "$1" | paste -s -d ' ' -)
+
+              echo "Installing dependencies for package $1: ${deps}"
+
+              for dep in ${deps}; do
+                  install_package "${dep}"
+              done
+
+              echo "Installing $1"
+
+              ${armbrew} fetch --force --bottle-tag=${arch} "$1"
+              ${armbrew} install "$(${armbrew} --cache --bottle-tag=${arch} "$1")"
+          }
+
+          for package in libass zlib ffmpeg fftw hunspell pulseaudio ; do
+              install_package ${package}
+          done
 
       - name: Install dependencies (Linux)
         if: startsWith(matrix.config.os, 'ubuntu-')
@@ -183,7 +200,7 @@ jobs:
           pkg-config = '/Users/runner/work/arm64-homebrew/bin/pkg-config'
 
           [constants]
-          target_flags = ['-target', 'arm64-apple-macos11']
+          target_flags = ['-target', 'arm64-apple-macos12']
 
           [built-in options]
           c_args = target_flags
