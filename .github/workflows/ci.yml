@@ -158,6 +158,7 @@ jobs:
           mkdir arm64-homebrew
           curl -L https://github.com/Homebrew/brew/tarball/master | tar xz --strip 1 -C arm64-homebrew
 
+          ln -s "$(which curl)" arm64-homebrew/bin/curl
           armbrew=arm64-homebrew/bin/brew
           arch=arm64_monterey
 
@@ -176,7 +177,7 @@ jobs:
 
               echo "Installing $1"
 
-              ${armbrew} fetch --force --bottle-tag=${arch} "$1"  || true
+              ${armbrew} fetch --force --bottle-tag=${arch} "$1"
               ${armbrew} install "$(${armbrew} --cache --bottle-tag=${arch} "$1")"  || true   # we don't care if post-install steps like fc-cache fail
           }
 
