@@ -152,7 +152,7 @@ jobs:
         if: matrix.config.os == 'macos-latest' && matrix.config.host == 'arm64'
         run: |
           brew update
-          brew install ninja
+          brew install pkg-config ninja
 
           cd /Users/runner/work
           mkdir arm64-homebrew
