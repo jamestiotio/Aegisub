@@ -106,7 +106,7 @@ jobs:
             os: macos-latest,
             host: arm64,
             buildtype: release,
-            args: --cross-file arm64-apple-macos11.txt -Ddefault_library=static -Dbuild_osx_bundle=true -Dlocal_boost=true -Dvapoursynth=enabled --force-fallback-for=ffms2
+            args: --cross-file arm64-apple-macos12.txt -Ddefault_library=static -Dbuild_osx_bundle=true -Dlocal_boost=true -Dvapoursynth=enabled --force-fallback-for=ffms2
           }
 
     steps:
@@ -176,7 +176,7 @@ jobs:
               echo "Installing $1"
 
               ${armbrew} fetch --force --bottle-tag=${arch} "$1"
-              ${armbrew} install "$(${armbrew} --cache --bottle-tag=${arch} "$1")"
+              ${armbrew} install "$(${armbrew} --cache --bottle-tag=${arch} "$1")"  || true   # we don't care if post-install steps like fc-cache fail
           }
 
           for package in libass zlib ffmpeg fftw hunspell pulseaudio ; do
@@ -192,7 +192,7 @@ jobs:
       - name: Set up cross file (arm64)
         if: matrix.config.os == 'macos-latest' && matrix.config.host == 'arm64'
         run: |
-          cat <<EOT > arm64-apple-macos11.txt
+          cat <<EOT > arm64-apple-macos12.txt
           [binaries]
           c = 'cc'
           cpp = 'c++'
