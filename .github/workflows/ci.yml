@@ -158,7 +158,6 @@ jobs:
           mkdir arm64-homebrew
           curl -L https://github.com/Homebrew/brew/tarball/master | tar xz --strip 1 -C arm64-homebrew
 
-          ln -s "$(which curl)" arm64-homebrew/bin/curl
           armbrew=arm64-homebrew/bin/brew
           arch=arm64_monterey
 
@@ -177,7 +176,7 @@ jobs:
 
               echo "Installing $1"
 
-              ${armbrew} fetch --force --bottle-tag=${arch} "$1"
+              ${armbrew} fetch --force --bottle-tag=${arch} "$1" || true
               ${armbrew} install "$(${armbrew} --cache --bottle-tag=${arch} "$1")"  || true   # we don't care if post-install steps like fc-cache fail
           }
 
@@ -200,7 +199,6 @@ jobs:
           cpp = 'c++'
           objc = 'cc'
           objcpp = 'c++'
-          pkg-config = '/Users/runner/work/arm64-homebrew/bin/pkg-config'
 
           [constants]
           target_flags = ['-target', 'arm64-apple-macos12']
@@ -216,6 +214,9 @@ jobs:
           cpu_family = 'aarch64'
           cpu = 'aarch64'
           endian = 'little'
+
+          [properties]
+          pkg_config_libdir = '/Users/runner/work/arm64-homebrew/lib/pkgconfig'
           EOT
 
       - name: Configure
