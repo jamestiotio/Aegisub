@@ -151,6 +151,7 @@ jobs:
       - name: Install dependencies (MacOS arm64)
         if: matrix.config.os == 'macos-latest' && matrix.config.host == 'arm64'
         run: |
+          cd /Users/runner/work
           mkdir arm64-homebrew
           curl -L https://github.com/Homebrew/brew/tarball/master | tar xz --strip 1 -C arm64-homebrew
 
@@ -174,7 +175,7 @@ jobs:
           cpp = 'c++'
           objc = 'cc'
           objc++ = 'c++'
-          pkg-config = 'arm64-homebrew/bin/pkg-config'
+          pkg-config = '/Users/runner/work/arm64-homebrew/bin/pkg-config'
 
           [constants]
           target_flags = ['target', 'arm64-apple-macos11']
