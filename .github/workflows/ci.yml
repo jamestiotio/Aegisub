@@ -179,7 +179,7 @@ jobs:
               ${armbrew} install "$(${armbrew} --cache --bottle-tag=${arch} "$1")"  || true   # we don't care if post-install steps like fc-cache fail
           }
 
-          for package in libass zlib ffmpeg fftw hunspell pulseaudio ; do
+          for package in libass zlib ffmpeg fftw hunspell ; do
               install_package ${package}
           done
 
