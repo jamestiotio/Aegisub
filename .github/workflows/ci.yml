@@ -162,7 +162,7 @@ jobs:
           arch=arm64_monterey
 
           ${armbrew} update
-          ${armbrew} install curl
+          # ${armbrew} install curl
 
           function install_package () {
               ${armbrew} list "$1" > /dev/null 2> /dev/null && return 0
@@ -176,7 +176,7 @@ jobs:
 
               echo "Installing $1"
 
-              ${armbrew} fetch --force --bottle-tag=${arch} "$1"
+              ${armbrew} fetch --force --bottle-tag=${arch} "$1"  || true
               ${armbrew} install "$(${armbrew} --cache --bottle-tag=${arch} "$1")"  || true   # we don't care if post-install steps like fc-cache fail
           }
 
