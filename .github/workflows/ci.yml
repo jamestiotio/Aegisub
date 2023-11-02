@@ -178,7 +178,7 @@ jobs:
           pkg-config = '/Users/runner/work/arm64-homebrew/bin/pkg-config'
 
           [constants]
-          target_flags = ['target', 'arm64-apple-macos11']
+          target_flags = ['-target', 'arm64-apple-macos11']
 
           [built-in options]
           c_args = target_flags
