@@ -162,6 +162,7 @@ jobs:
           arch=arm64_monterey
 
           ${armbrew} update
+          ${armbrew} install curl
 
           function install_package () {
               ${armbrew} list "$1" > /dev/null 2> /dev/null && return 0
