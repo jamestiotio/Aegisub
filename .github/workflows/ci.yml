@@ -170,10 +170,10 @@ jobs:
         run: |
           cat <<EOT > arm64-apple-macos11.txt
           [binaries]
-          c = 'clang'
-          cpp = 'clang++'
-          objc = 'clang'
-          objc++ = 'clang++'
+          c = 'cc'
+          cpp = 'c++'
+          objc = 'cc'
+          objc++ = 'c++'
           pkg-config = 'arm64-homebrew/bin/pkg-config'
 
           [constants]
