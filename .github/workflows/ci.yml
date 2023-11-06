@@ -162,7 +162,6 @@ jobs:
           arch=arm64_monterey
 
           ${armbrew} update
-          # ${armbrew} install curl
 
           function install_package () {
               ${armbrew} list "$1" > /dev/null 2> /dev/null && return 0
@@ -180,7 +179,7 @@ jobs:
               ${armbrew} install "$(${armbrew} --cache --bottle-tag=${arch} "$1")"  || true   # we don't care if post-install steps like fc-cache fail
           }
 
-          for package in libass zlib ffmpeg fftw hunspell ; do
+          for package in libass zlib fftw hunspell ; do
               install_package ${package}
           done
 
@@ -195,19 +194,20 @@ jobs:
         run: |
           cat <<EOT > arm64-apple-macos12.txt
           [binaries]
-          c = 'cc'
-          cpp = 'c++'
-          objc = 'cc'
-          objcpp = 'c++'
+          c = ['cc'] + target_flags
+          cpp = ['c++'] + target_flags
+          objc = ['cc'] + target_flags
+          objcpp = ['c++'] + target_flags
+          c_ld = ['ld'] + target_flags
+          cpp_ld = ['ld'] + target_flags
+          objc_ld = ['ld'] + target_flags
+          objcpp_ld = ['ld'] + target_flags
+          ar = 'ar'
+          strip = 'strip'
+          pkg-config = 'pkg-config'
 
           [constants]
           target_flags = ['-target', 'arm64-apple-macos12']
-
-          [built-in options]
-          c_args = target_flags
-          cpp_args = target_flags
-          objc_args = target_flags
-          objcpp_args = target_flags
 
           [host_machine]
           system = 'darwin'
@@ -216,8 +216,10 @@ jobs:
           endian = 'little'
 
           [properties]
-          pkg_config_libdir = '/Users/runner/work/arm64-homebrew/opt/icu4c/lib/pkgconfig:/Users/runner/work/arm64-homebrew/lib/pkgconfig'
+          pkg_config_libdir = '/Users/runner/work/arm64-homebrew/lib/pkgconfig:/Users/runner/work/arm64-homebrew/opt/icu4c/lib/pkgconfig:/Users/runner/work/arm64-homebrew/opt/zlib/lib/pkgconfig'
           EOT
+
+          echo AEGISUB_BUNDLE_LIBROOT=/Users/runner/work/arm64-homebrew >> $GITHUB_ENV
 
       - name: Configure
         run: meson setup build ${{ matrix.config.args }} -Dbuildtype=${{ matrix.config.buildtype }}

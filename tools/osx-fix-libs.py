@@ -7,8 +7,14 @@ import shutil
 import stat
 import subprocess
 
-is_bad_lib = re.compile(r'(/usr/local|/opt)').match
-is_sys_lib = re.compile(r'(/usr|/System)').match
+bad_lib_paths = ['/usr/local', '/opt']
+sys_lib_paths = ['/usr', '/System']
+
+if 'AEGISUB_BUNDLE_LIBROOT' in os.environ:
+    bad_lib_paths.append(os.environ['AEGISUB_BUNDLE_LIBROOT'])
+
+is_bad_lib = lambda s: any(s.startswith(p) for p in bad_lib_paths)
+is_sys_lib = lambda s: any(s.startswith(p) for p in bad_sys_paths)
 otool_libname_extract = re.compile(r'\s+([/@].*?)[(\s:]').search
 goodlist = []
 badlist = []
