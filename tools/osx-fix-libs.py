@@ -14,7 +14,7 @@ if 'AEGISUB_BUNDLE_LIBROOT' in os.environ:
     bad_lib_paths.append(os.environ['AEGISUB_BUNDLE_LIBROOT'])
 
 is_bad_lib = lambda s: any(s.startswith(p) for p in bad_lib_paths)
-is_sys_lib = lambda s: any(s.startswith(p) for p in bad_sys_paths)
+is_sys_lib = lambda s: any(s.startswith(p) for p in sys_lib_paths)
 otool_libname_extract = re.compile(r'\s+([/@].*?)[(\s:]').search
 goodlist = []
 badlist = []
